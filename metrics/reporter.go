@@ -30,6 +30,7 @@ type FinalMetrics struct {
 	CHChurnRate      float64 // Смены CH в минуту
 	FalsePositives   int
 	FalseNegatives   int
+	TrueNegative     int
 }
 
 func (mc *Collector) CalculateFinalMetrics(simResultProvider SimulationResultProvider) *FinalMetrics {
@@ -66,6 +67,7 @@ func (mc *Collector) CalculateFinalMetrics(simResultProvider SimulationResultPro
 
 	fp := 0
 	fn := 0
+	tn := 0
 	for i := range nodes {
 		for j := range nodes {
 			if i == j {
@@ -82,10 +84,14 @@ func (mc *Collector) CalculateFinalMetrics(simResultProvider SimulationResultPro
 			if isActuallyMalicious && isConsideredTrusted {
 				fn++
 			}
+			if isActuallyMalicious && !isConsideredTrusted {
+				tn++
+			}
 		}
 	}
 	fm.FalsePositives = fp
 	fm.FalseNegatives = fn
+	fm.TrueNegative = tn
 
 	return fm
 }
@@ -99,6 +105,7 @@ func (fm *FinalMetrics) Print() {
 	fmt.Printf("Частота смены CH: %.2f смен/мин\n", fm.CHChurnRate)
 	fmt.Printf("Ошибки классификации (False Positives): %d\n", fm.FalsePositives)
 	fmt.Printf("Ошибки классификации (False Negatives): %d\n", fm.FalseNegatives)
+	fmt.Printf("True Neagatives: %d\n", fm.TrueNegative)
 	fmt.Println("---------------------------------")
 }
 
@@ -112,7 +119,7 @@ func (fm *FinalMetrics) SaveToCSV(filePath string) error {
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
 
-	header := []string{"Algorithm", "PDR", "MeanDelay", "EnergyEfficiency", "CHChurnRate", "FalsePositives", "FalseNegatives"}
+	header := []string{"Algorithm", "PDR", "MeanDelay", "EnergyEfficiency", "CHChurnRate", "FalsePositives", "FalseNegatives", "TrueNegatives"}
 	data := []string{
 		fm.AlgorithmName,
 		fmt.Sprintf("%.5f", fm.PDR),
@@ -121,6 +128,7 @@ func (fm *FinalMetrics) SaveToCSV(filePath string) error {
 		fmt.Sprintf("%.3f", fm.CHChurnRate),
 		fmt.Sprintf("%d", fm.FalsePositives),
 		fmt.Sprintf("%d", fm.FalseNegatives),
+		fmt.Sprintf("%d", fm.TrueNegative),
 	}
 
 	if err := writer.Write(header); err != nil {
@@ -150,7 +158,7 @@ func SaveAllMetricsToCSV(allMetrics []*FinalMetrics, filePath string) error {
 	defer writer.Flush()
 
 	// Записываем заголовок
-	header := []string{"Run", "Algorithm", "PDR", "MeanDelay", "EnergyEfficiency", "CHChurnRate", "FalsePositives", "FalseNegatives"}
+	header := []string{"Run", "Algorithm", "PDR", "MeanDelay", "EnergyEfficiency", "CHChurnRate", "FalsePositives", "FalseNegatives", "TrueNegatives"}
 	if err := writer.Write(header); err != nil {
 		return err
 	}
@@ -166,6 +174,7 @@ func SaveAllMetricsToCSV(allMetrics []*FinalMetrics, filePath string) error {
 			fmt.Sprintf("%.3f", fm.CHChurnRate),
 			fmt.Sprintf("%d", fm.FalsePositives),
 			fmt.Sprintf("%d", fm.FalseNegatives),
+			fmt.Sprintf("%d", fm.TrueNegative),
 		}
 		if err := writer.Write(record); err != nil {
 			// Можно просто залогировать и продолжить, чтобы не терять весь файл из-за одной строки
@@ -187,7 +196,7 @@ func AverageMetrics(allMetrics []*FinalMetrics) *FinalMetrics {
 
 	numMetrics := float64(len(allMetrics))
 	var sumPDR, sumDelay, sumEnergy, sumChurn float64
-	var sumFP, sumFN int
+	var sumFP, sumFN, sumTN int
 
 	for _, m := range allMetrics {
 		sumPDR += m.PDR
@@ -196,6 +205,7 @@ func AverageMetrics(allMetrics []*FinalMetrics) *FinalMetrics {
 		sumChurn += m.CHChurnRate
 		sumFP += m.FalsePositives
 		sumFN += m.FalseNegatives
+		sumTN += m.TrueNegative
 	}
 
 	avg.PDR = sumPDR / numMetrics
@@ -205,6 +215,7 @@ func AverageMetrics(allMetrics []*FinalMetrics) *FinalMetrics {
 	// Для целочисленных значений тоже считаем среднее, но приводим к int
 	avg.FalsePositives = int(float64(sumFP) / numMetrics)
 	avg.FalseNegatives = int(float64(sumFN) / numMetrics)
+	avg.TrueNegative = int(float64(sumTN) / numMetrics)
 
 	return avg
 }

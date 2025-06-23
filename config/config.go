@@ -1,5 +1,9 @@
+// Файл: config/config.go
 package config
 
+import "fmt"
+
+// --- Структура конфига остается прежней ---
 type SimulatorConfig struct {
 	AlgorithmName        string
 	ResultsDir           string
@@ -10,152 +14,158 @@ type SimulatorConfig struct {
 	SimulationTime       float64
 	CHReelectionInterval float64
 	PacketGenInterval    float64
-
-	// Параметры выбора CH
-	CHSelectionAlgorithm string // "BaseBTMSD", "PoRS", "Blockchain"
-
-	// Параметры доверия
-	AlphaTrust     float64 // Фактор забывания для простого доверия
-	TrustThreshold float64
-	LambdaDecay    float64 // λ из формулы (2) статьи для затухания ист. доверия
-
-	// Параметры узлов
-	InitialEnergy       float64
-	EnergyMin           float64
-	EnergyTx            float64 // Энергия на передачу пакета
-	EnergyRx            float64 // Энергия на прием
-	EnergyConsensus     float64 // Энергия на раунд консенсуса
-	MinCompPower        float64 // Минимальная выч. мощность (Gflops)
-	MaxCompPower        float64 // Максимальная выч. мощность (Gflops)
-	CommunicationRadius float64
-
-	// Параметры консенсуса (для 'Blockchain')
-	ConsensusType   string  // "PBFT", "PoW"
-	PoWMiningTime   float64 // Среднее время майнинга блока PoW
-	PBFTBaseLatency float64 // Базовая задержка на раунд PBFT
-
-	// Параметры доверия
-	TrustModel        string  // "Simple", "Complex", "TrustByDefault"
-	InitialTrustValue float64 // Начальное доверие к узлам
+	CHSelectionAlgorithm string
+	TrustModel           string
+	AlphaTrust           float64
+	TrustThreshold       float64
+	InitialTrustValue    float64
+	LambdaDecay          float64
+	InitialEnergy        float64
+	EnergyMin            float64
+	EnergyTx             float64
+	EnergyRx             float64
+	EnergyConsensus      float64
+	MinCompPower         float64
+	MaxCompPower         float64
+	CommunicationRadius  float64
+	ConsensusType        string
+	PoWMiningTime        float64
+	PBFTBaseLatency      float64
 }
 
-const (
-	numDrones           = 100
-	simulationTime      = 120.0
-	areaWidth           = 800.0
-	areaHeight          = 800.0
-	communicationRadius = 250.0
-)
-
-func GetBaseBTMSDConfig() *SimulatorConfig {
+// --- Базовый шаблон со значениями по умолчанию ---
+func getBaseTemplate() *SimulatorConfig {
 	return &SimulatorConfig{
-		AlgorithmName:        "Base BTMSD",
-		ResultsDir:           "BaseBTMSD",
-		NumDrones:            numDrones,
-		MaliciousRatio:       0.2,
-		AreaWidth:            areaWidth,
-		AreaHeight:           areaHeight,
-		SimulationTime:       simulationTime,
+		SimulationTime:       120.0,
 		CHReelectionInterval: 10.0,
 		PacketGenInterval:    1.0,
-		CHSelectionAlgorithm: "BaseBTMSD",
 		AlphaTrust:           0.3,
 		TrustThreshold:       0.5,
+		InitialTrustValue:    0.5,
 		LambdaDecay:          0.1,
 		InitialEnergy:        5000.0,
 		EnergyMin:            500.0,
 		EnergyTx:             0.5,
 		EnergyRx:             0.1,
-		EnergyConsensus:      0,
 		MinCompPower:         1.0,
 		MaxCompPower:         2.0,
-		TrustModel:           "Simple",
-		InitialTrustValue:    0.5,
-		CommunicationRadius:  communicationRadius,
+		PoWMiningTime:        5.0,
+		PBFTBaseLatency:      0.5,
 	}
 }
 
-func GetPoRSConfig() *SimulatorConfig {
-	cfg := GetBaseBTMSDConfig()
-	cfg.AlgorithmName = "Proof-of-Reputation-and-Services (PoRS)"
-	cfg.ResultsDir = "PoRS"
-	cfg.CHSelectionAlgorithm = "PoRS"
+// --- Шаблоны для каждого из 6 алгоритмов ---
+
+func getBTMSDTemplate() *SimulatorConfig {
+	cfg := getBaseTemplate()
+	cfg.AlgorithmName = "Base BTMSD"
+	cfg.CHSelectionAlgorithm = "BaseBTMSD"
+	cfg.TrustModel = "Simple"
+	cfg.ConsensusType = ""
 	return cfg
 }
 
-func GetBlockchainConfig() *SimulatorConfig {
-	cfg := GetBaseBTMSDConfig()
-	cfg.AlgorithmName = "Hierarchical Blockchain (PBFT)"
-	cfg.ResultsDir = "Blockchain_PBFT"
-	cfg.CHSelectionAlgorithm = "Blockchain" // Лидер выбирается по RF, FF
+func getPoRSTemplate() *SimulatorConfig {
+	cfg := getBaseTemplate()
+	cfg.AlgorithmName = "PoRS"
+	cfg.CHSelectionAlgorithm = "PoRS"
+	cfg.TrustModel = "Simple"
+	cfg.ConsensusType = ""
+	return cfg
+}
+
+func getPBFTTemplate() *SimulatorConfig {
+	cfg := getBaseTemplate()
+	cfg.AlgorithmName = "Blockchain (PBFT)"
+	cfg.CHSelectionAlgorithm = "Blockchain"
+	cfg.TrustModel = "Complex"
 	cfg.ConsensusType = "PBFT"
-	cfg.PBFTBaseLatency = 0.5
-	cfg.PoWMiningTime = 5.0
 	cfg.EnergyConsensus = 2.0
-	cfg.TrustModel = "Complex"
 	return cfg
 }
 
-func GetPoRSBlockchainConfig() *SimulatorConfig {
-	cfg := GetBlockchainConfig() // Берем за основу блокчейн-конфиг
+func getPoWTemplate() *SimulatorConfig {
+	cfg := getBaseTemplate()
 	cfg.AlgorithmName = "PoRS + Blockchain (PoW)"
-	cfg.ResultsDir = "PoRS_Blockchain_PoW"
-	// Лидер по-прежнему выбирается по RF и FF, так как это лидер КОНСЕНСУСА
-	// А вот консенсус меняем на PoW
-	cfg.ConsensusType = "PoW"
-	// Выбор CH будет использовать PoRS, а не Blockchain-метрики
-	// Но у нас CH и лидер консенсуса - одно и то же. Давайте это разделим.
-	// Для чистоты эксперимента, пусть в этой модели для выбора CH (лидера) используется PoRS, а не RF+FF.
 	cfg.CHSelectionAlgorithm = "PoRS"
 	cfg.TrustModel = "Complex"
+	cfg.ConsensusType = "PoW"
+	cfg.EnergyConsensus = 1.5
 	return cfg
 }
 
-func GetPoRSConsensusConfig() *SimulatorConfig {
-	cfg := GetBaseBTMSDConfig() // Берем за основу
-	cfg.AlgorithmName = "Reputation-Based Consensus (PoRS)"
-	cfg.ResultsDir = "PoRS_Consensus"
-	// CH выбирается по правилам PoRS
+func getReputationConsensusTemplate() *SimulatorConfig {
+	cfg := getBaseTemplate()
+	cfg.AlgorithmName = "Reputation-Based Consensus"
 	cfg.CHSelectionAlgorithm = "PoRS"
-	// Тип консенсуса тоже PoRS
-	cfg.ConsensusType = "PoRS_Consensus"
-	// Включаем накладные расходы на энергию для консенсуса
-	cfg.EnergyConsensus = 1.0 // Меньше, чем у PBFT, но больше, чем у PoW
-	// Включаем использование блокчейна для модели доверия
-	cfg.TrustModel = "Complex"
-	cfg.CHSelectionAlgorithm = "Blockchain" // Это заставит использовать комплексную модель доверия из статьи
-	// НО! Лидер консенсуса (и CH) все равно будет выбираться по PoRS. Это тонкий момент.
-	// Давайте сделаем так:
-	// 1. Метод консенсуса - наш новый PoRS_Consensus
-	// 2. Метод выбора CH - тоже PoRS.
-	// 3. Модель доверия - комплексная, из статьи (как для блокчейна)
-	// Это создаст самый интересный гибрид.
-
-	finalCfg := GetPoRSConfig() // Начнем с PoRS конфига
-	finalCfg.AlgorithmName = "Reputation-Based Consensus (PoRS)"
-	finalCfg.ResultsDir = "PoRS_Consensus"
-	finalCfg.ConsensusType = "PoRS_Consensus"
-	finalCfg.EnergyConsensus = 1.0
-
-	// Заставим использовать комплексную модель доверия.
-	// Для этого в RecordInteraction мы должны смотреть не на CHSelectionAlgorithm, а на ConsensusType.
-	// Давайте упростим: если есть консенсус, то модель доверия - комплексная.
-	// Это изменение нужно внести в trust/manager.go
-	return finalCfg
-}
-
-func GetUnifiedPoRSConfig() *SimulatorConfig {
-	cfg := GetPoRSConfig()
-	cfg.AlgorithmName = "Behavior-Aware Reputation Consensus (BARC)" // Новое имя
-	cfg.ResultsDir = "BARC"
-
-	cfg.CHSelectionAlgorithm = "BARC"
+	cfg.TrustModel = "Simple"
 	cfg.ConsensusType = "PoRS_Consensus"
 	cfg.EnergyConsensus = 1.0
-
-	// <<< ГЛАВНЫЕ ИЗМЕНЕНИЯ >>>
-	cfg.TrustModel = "TrustByDefault"
-	cfg.InitialTrustValue = 0.9 // Высокое начальное доверие
-
 	return cfg
+}
+
+func getUnifiedPORSTemplate() *SimulatorConfig {
+	cfg := getBaseTemplate()
+	cfg.AlgorithmName = "BARC"
+	cfg.CHSelectionAlgorithm = "Unified PoRS Consensus"
+	cfg.TrustModel = "TrustByDefault"
+	cfg.InitialTrustValue = 0.9
+	cfg.ConsensusType = "PoRS_Consensus"
+	cfg.EnergyConsensus = 1.0
+	return cfg
+}
+
+// <<< ГЛАВНАЯ ФУНКЦИЯ-ГЕНЕРАТОР >>>
+// GenerateExperimentConfigs создает список всех конфигураций для полного факторного эксперимента.
+func GenerateExperimentConfigs() []*SimulatorConfig {
+	// --- Определяем шаблоны для каждого алгоритма ---
+	templates := []*SimulatorConfig{
+		getBTMSDTemplate(),
+		getPoRSTemplate(),
+		getPBFTTemplate(),
+		// getPoWTemplate(),
+		// getReputationConsensusTemplate(),
+		getUnifiedPORSTemplate(),
+	}
+
+	// --- Определяем диапазоны параметров, которые мы будем варьировать ---
+	numDronesRange := []int{50, 100}
+	maliciousRatioRange := []float64{0.1, 0.3, 0.7}
+	areaSizeRange := []float64{200.0, 400.0, 800.0, 1200.0}
+
+	var allConfigs []*SimulatorConfig
+
+	// --- Создаем комбинации вложенными циклами ---
+	for _, tpl := range templates {
+		for _, numDrones := range numDronesRange {
+			for _, maliciousRatio := range maliciousRatioRange {
+				for _, areaSize := range areaSizeRange {
+
+					// Создаем копию шаблона
+					cfg := *tpl
+
+					// Применяем варьируемые параметры
+					cfg.NumDrones = numDrones
+					cfg.MaliciousRatio = maliciousRatio
+					cfg.AreaWidth = areaSize
+					cfg.AreaHeight = areaSize
+
+					// Радиус связи можно сделать зависимым от плотности
+					// Простое правило: 1/4 от размера площади
+					cfg.CommunicationRadius = areaSize / 4.0
+
+					// Формируем уникальное имя директории для результатов
+					cfg.ResultsDir = fmt.Sprintf("%s/drones_%d_malicious_%.1f_area_%.0f",
+						tpl.AlgorithmName,
+						numDrones,
+						maliciousRatio,
+						areaSize)
+
+					// Добавляем готовую конфигурацию в общий список
+					allConfigs = append(allConfigs, &cfg)
+				}
+			}
+		}
+	}
+	return allConfigs
 }

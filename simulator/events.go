@@ -64,9 +64,8 @@ func (pq *PriorityQueue) Pop() interface{} {
 	n := len(old)
 	event := old[n-1]
 
-	// old[n-1] = nil // <<< ВРЕМЕННО КОММЕНТИРУЕМ ЭТУ СТРОКУ
+	old[n-1] = nil
 
-	// Добавим проверку, чтобы убедиться
 	if event == nil {
 		log.Fatalf("FATAL: event is nil just before modifying index. Queue length: %d", n)
 	}
